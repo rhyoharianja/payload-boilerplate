@@ -51,6 +51,14 @@ export default defineConfig({
   webServer: {
     command: 'pnpm dev',
     reuseExistingServer: true,
-    url: process.env.CMS_URL ?? 'http://localhost:3001',
+    /*
+     * Menunjuk `/admin/login`, bukan root.
+     *
+     * Aplikasi ini murni CMS: root membalas 404 sejak route frontend bawaannya
+     * dibuang. Playwright menganggap status non-2xx berarti server belum siap,
+     * lalu menjalankan servernya sendiri — yang langsung gagal EADDRINUSE
+     * karena porta itu justru sudah dipakai server yang tadi diabaikannya.
+     */
+    url: `${process.env.CMS_URL ?? 'http://localhost:3001'}/admin/login`,
   },
 })

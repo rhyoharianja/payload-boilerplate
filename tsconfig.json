@@ -28,9 +28,6 @@
       ],
       "@payload-config": [
         "./src/payload.config.ts"
-      ],
-      "@fe/*": [
-        "../NEXT-REACTBANK/src/*"
       ]
     },
     "target": "ES2022"

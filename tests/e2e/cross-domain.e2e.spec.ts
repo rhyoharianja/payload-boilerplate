@@ -185,3 +185,78 @@ test('Live Preview menampilkan frontend di dalam iframe admin', async ({ page })
     )
     .toBe(true)
 })
+
+test('canvas Puck merender blok dengan MEMINTANYA ke frontend', async ({ page }) => {
+  test.setTimeout(180_000)
+
+  /*
+   * CMS tidak lagi memuat komponen section dari berkas. Setiap blok di canvas
+   * dirender dengan memanggil `/block-preview` di origin frontend.
+   *
+   * Yang diuji: permintaan itu benar-benar terjadi ke origin FRONTEND, dan
+   * hasilnya benar-benar masuk ke canvas. Memeriksa satu saja tidak cukup —
+   * permintaan yang berhasil tapi tidak tersuntik menghasilkan canvas kosong,
+   * dan canvas berisi tanpa permintaan berarti komponennya kembali di-bundel.
+   */
+  const previewRequests: string[] = []
+  page.on('request', (req) => {
+    if (req.url().includes('/block-preview')) {
+      previewRequests.push(req.url())
+    }
+  })
+
+  await page.goto(`${CMS}/admin/login`)
+  await page.fill('#field-email', EMAIL)
+  await page.fill('#field-password', PASSWORD)
+  await page.click('form button[type="submit"]')
+  await page.waitForURL(/\/admin(?!\/login)/, { timeout: 60_000 })
+
+  const list = await page.request.get(`${CMS}/api/pages?limit=1&where[slug][equals]=about-us`)
+  const { docs } = (await list.json()) as { docs: { id: number | string }[] }
+  expect(docs?.length, 'halaman about-us belum ada — jalankan `pnpm seed:content`').toBeTruthy()
+
+  await page.goto(`${CMS}/admin/collections/pages/${docs[0].id}/puck`)
+  await expect(page.locator('#puck-advance-save')).toBeVisible({ timeout: 120_000 })
+
+  const canvas = () =>
+    page.evaluate(() => {
+      const doc = document.querySelector('iframe')?.contentDocument
+      return {
+        gagal: (doc?.body.innerText ?? '').includes('gagal dimuat'),
+        section: doc?.querySelectorAll('section').length ?? 0,
+      }
+    })
+
+  await expect
+    .poll(async () => (await canvas()).section, {
+      message: 'tidak ada section yang masuk ke canvas',
+      timeout: 90_000,
+    })
+    .toBeGreaterThan(0)
+
+  expect(
+    previewRequests.every((url) => url.startsWith(FRONTEND)),
+    `pratinjau harus diminta ke ${FRONTEND}, bukan ke origin lain`,
+  ).toBe(true)
+  expect(previewRequests.length, 'tidak ada permintaan pratinjau sama sekali').toBeGreaterThan(0)
+  expect((await canvas()).gagal, 'ada blok yang gagal dimuat di canvas').toBe(false)
+})
+
+test('endpoint pratinjau blok mengembalikan markup section', async ({ request }) => {
+  // Baris disandikan sama seperti yang dilakukan CMS: dipadatkan lalu base64url.
+  const { deflateSync } = await import('node:zlib')
+  const encoded = deflateSync(Buffer.from(JSON.stringify({ blockType: 'faq' })))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
+  const res = await request.get(`${FRONTEND}/block-preview?b=${encoded}`)
+  expect(res.ok(), 'halaman pratinjau harus menjawab').toBeTruthy()
+
+  const html = await res.text()
+  expect(html, 'wadah pratinjau tidak ada').toContain('data-block-preview')
+  // Header dan footer situs TIDAK boleh ikut: canvas menampilkan satu blok, dan
+  // navigasi yang menempel di tiap blok membuatnya tidak terbaca.
+  expect(html, 'header situs ikut terkirim').not.toContain('Buka Rekening')
+})

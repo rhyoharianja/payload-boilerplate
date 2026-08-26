@@ -1,23 +1,9 @@
 import 'dotenv/config'
 import { getPayload } from 'payload'
 
-import {
-  authors as feAuthors,
-  caseStudies as feCaseStudies,
-  categories as feCategories,
-  faqs as feFaqs,
-  team as feTeam,
-} from '@fe/lib/content'
-import {
-  footerNav as feFooterNav,
-  mainNav as feMainNav,
-  megaMenu as feMegaMenu,
-  posts as fePosts,
-  site as feSite,
-} from '@fe/lib/site'
-
 import config from '../payload.config'
-import { pageSeeds } from './page-seeds'
+import { buildPageSeeds } from './page-seeds'
+import { fetchSeedSource } from './seed-source'
 
 /**
  * Mengisi collection dan global dari data statis frontend.
@@ -150,6 +136,27 @@ const isiStudiKasus = (klien: string, industri: string, ringkasan: string) =>
   ])
 
 const seed = async () => {
+  /*
+   * Data seed diambil dari frontend lewat HTTP sebelum apa pun disentuh.
+   *
+   * Kalau frontend mati, skrip berhenti DI SINI — sebelum satu dokumen pun
+   * dibuat. Seed yang berjalan separuh lebih buruk daripada seed yang gagal:
+   * yang gagal jelas, yang separuh meninggalkan basis data dalam keadaan yang
+   * tidak pernah dirancang siapa pun.
+   */
+  const source = await fetchSeedSource()
+  const feAuthors = source.content.authors
+  const feCaseStudies = source.content.caseStudies
+  const feCategories = source.content.categories
+  const feFaqs = source.content.faqs
+  const feTeam = source.content.team
+  const feFooterNav = source.site.footerNav
+  const feMainNav = source.site.mainNav
+  const feMegaMenu = source.site.megaMenu
+  const fePosts = source.site.posts
+  const feSite = source.site.site
+  const pageSeeds = buildPageSeeds(source)
+
   const payload = await getPayload({ config })
 
   /**

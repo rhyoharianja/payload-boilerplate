@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { blockDefaults } from '@fe/lib/block-defaults'
-
 import { blockComponents } from '@/blocks/render'
 import { layoutBlocks } from '@/blocks'
 
@@ -34,21 +32,6 @@ describe('kesejajaran definisi block dan komponen render', () => {
     const seen = new Set<string>()
     const duplicates = blockSlugs.filter((slug) => !seen.add(slug))
     expect(duplicates, 'slug ganda membuat definisi yang belakangan menimpa yang awal').toEqual([])
-  })
-
-  it('setiap block punya nilai bawaan yang bisa dipakai seed', () => {
-    /*
-     * `blockDefaults` dibuat ulang oleh skrip dari berkas komponen, dan skrip itu
-     * melewati komponen yang tidak ada di peta registry — diam-diam.
-     *
-     * Akibatnya block baru bisa lolos tanpa nilai bawaan, dan halaman yang
-     * memakainya ter-seed dengan seluruh field kosong. Tampilannya tetap benar
-     * karena komponen memakai default-nya sendiri, jadi tidak ada yang menyadari
-     * sampai ada yang membuka halaman itu di admin.
-     */
-    const missing = blockSlugs.filter((slug) => !blockDefaults[slug])
-
-    expect(missing, 'block tanpa nilai bawaan akan ter-seed dengan field kosong').toEqual([])
   })
 
   it('setiap field select punya opsi', () => {

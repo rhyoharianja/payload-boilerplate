@@ -19,34 +19,37 @@ and the two run on different origins and talk over the REST API.
 
 ---
 
-## ⚠️ This repository is not self-contained
+## How the two halves talk
 
-The CMS imports the block component map and the site content from a sibling
-frontend directory through the `@fe/*` alias, and its Turbopack root is the
-parent folder. Cloning this repository on its own gives you a project that
-**will not start** — `pnpm dev` and `pnpm build` both fail while resolving
-`@fe/blocks/registry`.
-
-That is a deliberate consequence of a design decision, not an oversight. The
-block map lives in the frontend because the components do. Keeping a second copy
-here would mean two lists that must be kept identical by hand, and the one that
-drifts first is always the one nobody opens.
-
-To run it you need this layout:
+The CMS holds the content and the block definitions. A separate Next.js
+application holds the components and renders the pages. **Nothing crosses
+between them except HTTP.**
 
 ```
-your-workspace/
-├── payload-boilerplate/     ← this repository
-└── NEXT-REACTBANK/          ← the frontend (separate)
+┌──────────────────────┐                      ┌──────────────────────┐
+│  payload-boilerplate │  GET /api/pages      │    the frontend      │
+│        :3001         │ ◀─────────────────── │        :3030         │
+│                      │                      │                      │
+│  Puck canvas         │  GET /block-preview  │  renders one block   │
+│  asks for markup     │ ───────────────────▶ │  and returns it      │
+│                      │                      │                      │
+│  seed:content        │  GET /api/seed-data  │  ships initial data  │
+│                      │ ───────────────────▶ │                      │
+└──────────────────────┘                      └──────────────────────┘
 ```
 
-Expected by `tsconfig.json`:
+That means this repository **builds and runs on its own** — `pnpm build`
+produces an admin panel and an API, nothing more. It also means the two can be
+deployed independently, on different hosts, in different languages if it ever
+came to that.
 
-```jsonc
-"paths": { "@fe/*": ["../NEXT-REACTBANK/src/*"] }
-```
+The one thing the Puck canvas gives up for this: **hydration**. Block previews
+arrive as static markup, so a calculator slider in the canvas does not move. On
+the published page it does. That trade is what keeps the canvas usable at all —
+interactive markup would capture pointer events, and dragging blocks in Puck
+would stop working.
 
----
+To see anything render, the frontend has to be reachable at `FRONTEND_URL`.
 
 ## What you get
 
@@ -57,7 +60,7 @@ Expected by `tsconfig.json`:
 | **3 globals** | Site Settings, Header & Navigation, Footer |
 | **Visual editing** | Puck canvas that renders the real production components |
 | **Cross-origin** | CORS, CSRF, and Live Preview across two domains |
-| **44 tests** | 38 Playwright end-to-end, 6 Vitest integration |
+| **46 tests** | 39 Playwright end-to-end, 7 Vitest integration |
 
 ### Admin panel
 
@@ -99,7 +102,7 @@ All three are published to npm and maintained in their own repositories.
 
 | Plugin | Version | What it does |
 | --- | --- | --- |
-| [payload-admin-theme](https://github.com/rhyoharianja/payload-admin-theme) · [npm](https://www.npmjs.com/package/payload-admin-theme) | 1.1.0 | Admin theme, navigation, dashboard, and login screen — all configurable from the panel, applied on save |
+| [payload-admin-theme](https://github.com/rhyoharianja/payload-admin-theme) · [npm](https://www.npmjs.com/package/payload-admin-theme) | 1.1.1 | Admin theme, navigation, dashboard, and login screen — all configurable from the panel, applied on save |
 | [payload-puck-advance](https://github.com/rhyoharianja/payload-puck-advance) · [npm](https://www.npmjs.com/package/payload-puck-advance) | 0.3.1 | Puck canvas driven by Payload block definitions, honouring drafts, versions, and access control |
 | [payload-hrbac](https://github.com/rhyoharianja/payload-hrbac) · [npm](https://www.npmjs.com/package/payload-hrbac) | 1.0.0 | Dynamic nested RBAC — roles, inheritance, and per-field read/write permissions |
 
@@ -107,8 +110,9 @@ All three are published to npm and maintained in their own repositories.
 
 ## Setup
 
-**Requirements:** Node 20+, pnpm 10+, PostgreSQL 14+ (Docker is fine), and the
-frontend checked out as a sibling directory.
+**Requirements:** Node 20+, pnpm 10+, and PostgreSQL 14+ (Docker is fine). The
+frontend is a separate deployment — it only has to be reachable over HTTP, not
+present on disk.
 
 ```bash
 pnpm install
@@ -124,7 +128,8 @@ seed the content:
 pnpm seed:content
 ```
 
-`seed:content` is **idempotent**: existing documents are left alone, and only
+`seed:content` reads its initial data from the frontend over HTTP, so the
+frontend has to be running. It is **idempotent**: existing documents are left alone, and only
 fields that are still empty get filled. Pass `SEED_PAGES_FORCE=1` to overwrite
 page layouts with the defaults — it discards edits, so it exists for the case
 where the shipped layout changed and seeded pages need to follow.
@@ -138,7 +143,7 @@ Both origins have to know about each other. The names that matter:
 | `DATABASE_URL` | PostgreSQL connection |
 | `PAYLOAD_SECRET` | Signing key — `openssl rand -hex 24` |
 | `FRONTEND_URL` | Read on the **server**: CORS allowlist, Live Preview target, cache purge |
-| `NEXT_PUBLIC_FRONTEND_URL` | Read in the **browser** by the Puck canvas to load frontend styles |
+| `NEXT_PUBLIC_FRONTEND_URL` | Read in the **browser** by the Puck canvas, to load frontend styles and to fetch each block's markup |
 | `REVALIDATE_SECRET` | Shared secret for the purge endpoint. Without it revalidation is **disabled** — an unauthenticated purge endpoint is one anybody can hammer |
 
 ---
@@ -193,11 +198,11 @@ CAPTURE_SCREENSHOTS=1 pnpm exec playwright test tests/e2e/screenshots.e2e.spec.t
 definitions; the frontend holds the components. They meet on the block `slug`,
 and an integration test fails the build if the two lists ever diverge.
 
-**The Puck canvas renders the production components**, not a preview
-approximation, and borrows the frontend's stylesheet at runtime. Because the two
-run on different origins, every stylesheet href has to be resolved against the
-frontend origin before it is injected — a relative href resolves against the CMS
-and 404s, leaving an unstyled canvas with no error anywhere.
+**The Puck canvas renders the real components**, not a preview approximation —
+it just asks the frontend to render them instead of importing them. Because the
+two run on different origins, every stylesheet href has to be resolved against
+the frontend origin before it is injected; a relative href resolves against the
+CMS and 404s, leaving an unstyled canvas with no error anywhere.
 
 **Business rules stay in code.** The blocks expose copy and starting values;
 instalment formulas, eligibility thresholds, and form steps do not. Moving those

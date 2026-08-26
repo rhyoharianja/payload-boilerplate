@@ -1,17 +1,4 @@
-import {
-  aboutTimeline,
-  aboutValues,
-  applySteps,
-  calculatorNotes,
-  disclaimerClauses,
-  partnerTracks,
-  platformCapabilities,
-  platformSnippet,
-  securityCertifications,
-  securityControls,
-  servicePlans,
-} from '@fe/lib/pages'
-import { blockDefaults } from '@fe/lib/block-defaults'
+import type { SeedSource } from './seed-source'
 
 /**
  * Susunan awal dokumen `pages`, disalin dari halaman yang selama ini ditulis
@@ -109,27 +96,40 @@ const applyPath = (props: Record<string, unknown>, path: string): void => {
   )
 }
 
-/**
- * Baris block yang TERISI nilai bawaan section-nya.
- *
- * Sebelumnya baris ini dibiarkan kosong dengan alasan tampilannya tetap sama —
- * memang sama, tapi editor yang membuka halaman melihat seluruh field kosong dan
- * tidak punya cara mengetahui teks apa yang sedang tayang. Nilai bawaannya
- * sekarang diturunkan dari komponen itu sendiri lewat `blockDefaults`.
- *
- * `extra` menang atas bawaan: itu nilai yang memang ditulis eksplisit di halaman.
- */
-const filled = (blockType: string, extra: Record<string, unknown> = {}): Row => {
-  const props: Record<string, unknown> = { ...(blockDefaults[blockType] ?? {}) }
-  for (const path of TEXT_LISTS[blockType] ?? []) {
-    applyPath(props, path)
-  }
-  return { ...props, ...extra, blockType }
-}
-
 export type PageSeed = { layout: Row[]; slug: string; title: string }
 
-export const pageSeeds: PageSeed[] = [
+/**
+ * Susunan halaman dibangun dari data yang DIBERIKAN, bukan yang di-import.
+ *
+ * Sebelumnya berkas ini meng-import langsung dari folder frontend. Sekarang
+ * pemanggil yang mengambilnya lewat HTTP dan menyerahkannya ke sini — satu-
+ * satunya perubahan yang membuat CMS bisa berdiri sendiri.
+ */
+export const buildPageSeeds = (source: SeedSource): PageSeed[] => {
+  const { blockDefaults, pages } = source
+  const {
+    aboutTimeline,
+    aboutValues,
+    applySteps,
+    calculatorNotes,
+    disclaimerClauses,
+    partnerTracks,
+    platformCapabilities,
+    platformSnippet,
+    securityCertifications,
+    securityControls,
+    servicePlans,
+  } = pages
+
+  const filled = (blockType: string, extra: Record<string, unknown> = {}): Row => {
+    const props: Record<string, unknown> = { ...(blockDefaults[blockType] ?? {}) }
+    for (const path of TEXT_LISTS[blockType] ?? []) {
+      applyPath(props, path)
+    }
+    return { ...props, ...extra, blockType }
+  }
+
+  return [
   {
     layout: [
       filled('hero'),
@@ -449,4 +449,5 @@ export const pageSeeds: PageSeed[] = [
     slug: 'disclaimer',
     title: 'Disclaimer',
   },
-]
+  ]
+}
