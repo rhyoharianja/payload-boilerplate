@@ -48,3 +48,15 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# ─── Berkas instruksi agen ────────────────────────────────────────────────
+# `AGENTS.md` DITULIS ULANG oleh `next dev` setiap kali dijalankan, jadi
+# menghapusnya saja tidak cukup — ia kembali sebagai perubahan yang tidak
+# di-commit. `CLAUDE.md` hanya menunjuk ke sana.
+AGENTS.md
+CLAUDE.md
+
+# ─── Artefak lokal ────────────────────────────────────────────────────────
+*.tsbuildinfo
+docs/screenshots/*.tmp.png
+
