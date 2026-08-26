@@ -1,0 +1,16 @@
+# Boilerplate berdiri sendiri, BUKAN bagian dari workspace di folder induk.
+#
+# File ini sengaja tidak mendaftarkan package apa pun. Fungsinya satu: pnpm
+# berhenti menaik saat menemukan pnpm-workspace.yaml, jadi keberadaannya di
+# sini memutus boilerplate dari workspace plugin di atasnya. Tanpa itu, pnpm
+# menganggap folder ini bagian dari workspace induk lalu melewatinya sama
+# sekali — node_modules tidak pernah terisi.
+#
+# Konsekuensinya disengaja: ketiga plugin dipasang dari registry npm, persis
+# seperti yang dialami pengguna, bukan lewat symlink ke folder sebelah.
+packages: []
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
